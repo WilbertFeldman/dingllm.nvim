@@ -5,31 +5,6 @@ local function get_api_key(name)
 	return os.getenv(name)
 end
 
-local action_state = require("telescope.actions.state")
-local actions = require("telescope.actions")
-
-function M.insert_path_telecope_action(prompt_bufnr)
-	local selection = action_state.get_selected_entry()
-	actions.close(prompt_bufnr)
-	if selection == nil then
-		print("No file selected")
-		return
-	end
-
-	local file_path = selection.path
-	vim.api.nvim_put(file_path, "c", true, true)
-end
-
-function M.insert_symbol_telescope_action(prompt_bufnr)
-	local selection = action_state.get_selected_entry()
-	actions.close(prompt_bufnr)
-	if selection == nil then
-		print("No symbol selected")
-		return
-	end
-	print(vim.pretty_print(selection))
-end
-
 function M.get_lines_until_cursor()
 	local current_buffer = vim.api.nvim_get_current_buf()
 	local current_window = vim.api.nvim_get_current_win()
@@ -152,6 +127,21 @@ local function get_prompt(opts)
 		prompt = M.get_lines_until_cursor()
 	end
 
+	local _, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
+	while path ~= nil do
+		local file_path = "/path/to/your/file.txt"
+		local file_contents = vim.fn.readfile(file_path)
+
+		if file_contents then
+			-- file_contents is a table where each line is an element
+			local contents = table.concat(file_contents, "\n")
+			string.gsub(prompt, "{@dingllmIncludeFile .*}", contents)
+		else
+			print("Failed to read file")
+			string.gsub(prompt, "{@dingllmIncludeFile .*}", file_path)
+		end
+		_, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
+	end
 	return prompt
 end
 
