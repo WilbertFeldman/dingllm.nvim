@@ -129,8 +129,7 @@ local function get_prompt(opts)
 
 	local _, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
 	while path ~= nil do
-		local file_path = "/path/to/your/file.txt"
-		local file_contents = vim.fn.readfile(file_path)
+		local file_contents = vim.fn.readfile(path)
 
 		if file_contents then
 			-- file_contents is a table where each line is an element
@@ -138,7 +137,7 @@ local function get_prompt(opts)
 			string.gsub(prompt, "{@dingllmIncludeFile .*}", contents)
 		else
 			print("Failed to read file")
-			string.gsub(prompt, "{@dingllmIncludeFile .*}", file_path)
+			string.gsub(prompt, "{@dingllmIncludeFile .*}", path)
 		end
 		_, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
 	end
