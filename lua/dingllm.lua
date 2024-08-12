@@ -127,7 +127,7 @@ local function get_prompt(opts)
 		prompt = M.get_lines_until_cursor()
 	end
 
-	local _, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
+	local _, _, path = string.find(prompt, "{@dingllmIncludeFile (.-)}")
 	while path ~= nil do
 		local file_contents = vim.fn.readfile(path)
 
@@ -135,12 +135,12 @@ local function get_prompt(opts)
 			-- file_contents is a table where each line is an element
 			local contents = table.concat(file_contents, "\n")
 			print(contents)
-			prompt = string.gsub(prompt, "{@dingllmIncludeFile .*}", contents)
+			prompt = string.gsub(prompt, "{@dingllmIncludeFile .-}", contents)
 		else
 			print("Failed to read file")
-			prompt = string.gsub(prompt, "{@dingllmIncludeFile .*}", path)
+			prompt = string.gsub(prompt, "{@dingllmIncludeFile .-}", path)
 		end
-		_, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
+		_, _, path = string.find(prompt, "{@dingllmIncludeFile (.-)}")
 	end
 	return prompt
 end
