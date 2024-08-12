@@ -134,10 +134,11 @@ local function get_prompt(opts)
 		if file_contents then
 			-- file_contents is a table where each line is an element
 			local contents = table.concat(file_contents, "\n")
-			string.gsub(prompt, "{@dingllmIncludeFile .*}", contents)
+			print(contents)
+			prompt = string.gsub(prompt, "{@dingllmIncludeFile .*}", contents)
 		else
 			print("Failed to read file")
-			string.gsub(prompt, "{@dingllmIncludeFile .*}", path)
+			prompt = string.gsub(prompt, "{@dingllmIncludeFile .*}", path)
 		end
 		_, _, path = string.find(prompt, "{@dingllmIncludeFile (.*)}")
 	end
