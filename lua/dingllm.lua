@@ -93,11 +93,11 @@ function M.make_openai_spec_curl_args(opts, prompt, system_prompt)
 	return args
 end
 
-local function write_string_at_cursor(str)
-	vim.schedule(function()
-		local current_window = vim.api.nvim_get_current_win()
-		local cursor_position = vim.api.nvim_win_get_cursor(current_window)
-		local row, col = cursor_position[1], cursor_position[2]
+function M.write_string_at_cursor(str)
+  vim.schedule(function()
+    local current_window = vim.api.nvim_get_current_win()
+    local cursor_position = vim.api.nvim_win_get_cursor(current_window)
+    local row, col = cursor_position[1], cursor_position[2]
 
 		local lines = vim.split(str, "\n")
 
@@ -146,24 +146,24 @@ local function get_prompt(opts)
 end
 
 function M.handle_anthropic_spec_data(data_stream, event_state)
-	if event_state == "content_block_delta" then
-		local json = vim.json.decode(data_stream)
-		if json.delta and json.delta.text then
-			write_string_at_cursor(json.delta.text)
-		end
-	end
+  if event_state == 'content_block_delta' then
+    local json = vim.json.decode(data_stream)
+    if json.delta and json.delta.text then
+      M.write_string_at_cursor(json.delta.text)
+    end
+  end
 end
 
 function M.handle_openai_spec_data(data_stream)
-	if data_stream:match('"delta":') then
-		local json = vim.json.decode(data_stream)
-		if json.choices and json.choices[1] and json.choices[1].delta then
-			local content = json.choices[1].delta.content
-			if content then
-				write_string_at_cursor(content)
-			end
-		end
-	end
+  if data_stream:match '"delta":' then
+    local json = vim.json.decode(data_stream)
+    if json.choices and json.choices[1] and json.choices[1].delta then
+      local content = json.choices[1].delta.content
+      if content then
+        M.write_string_at_cursor(content)
+      end
+    end
+  end
 end
 
 local group = vim.api.nvim_create_augroup("DING_LLM_AutoGroup", { clear = true })
