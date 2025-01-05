@@ -94,10 +94,10 @@ function M.make_openai_spec_curl_args(opts, prompt, system_prompt)
 end
 
 function M.write_string_at_cursor(str)
-  vim.schedule(function()
-    local current_window = vim.api.nvim_get_current_win()
-    local cursor_position = vim.api.nvim_win_get_cursor(current_window)
-    local row, col = cursor_position[1], cursor_position[2]
+	vim.schedule(function()
+		local current_window = vim.api.nvim_get_current_win()
+		local cursor_position = vim.api.nvim_win_get_cursor(current_window)
+		local row, col = cursor_position[1], cursor_position[2]
 
 		local lines = vim.split(str, "\n")
 
@@ -108,6 +108,69 @@ function M.write_string_at_cursor(str)
 		local last_line_length = #lines[num_lines]
 		vim.api.nvim_win_set_cursor(current_window, { row + num_lines - 1, col + last_line_length })
 	end)
+end
+
+local function split(str, delimiter)
+	local result = {}
+	for match in (str .. delimiter):gmatch("(.-)" .. delimiter) do
+		table.insert(result, match)
+	end
+	return result
+end
+local function get_definition(path, line, col)
+	local bufnr = vim.fn.bufadd(path)
+	vim.fn.bufload(bufnr)
+	local parser = vim.treesitter.get_parser(bufnr)
+	local tree = parser:parse()[1]
+	local root = tree:root()
+	local node = root:named_descendant_for_range(line, col, line, col)
+	if not node then
+		return
+	end
+
+	-- named constructs we want to capture. For now just typescript constructs. May add more later
+	local named_constructs = {
+		["class_declaration"] = true,
+		["function_declaration"] = true,
+		["method_definition"] = true,
+		["interface_declaration"] = true,
+		["enum_declaration"] = true,
+		["type_alias_declaration"] = true,
+		["export_statement"] = true, -- To capture exported declarations
+	}
+
+	-- Find the named construct
+	while node do
+		if named_constructs[node:type()] then
+			-- Now find any preceding comments/decorators
+			local prev_node = node:prev_sibling()
+			local start_row, start_col = node:range()
+
+			-- Walk backwards through siblings to find connected comments/decorators
+			while prev_node do
+				local prev_type = prev_node:type()
+				if prev_type == "comment" or prev_type == "decorator" then
+					start_row, start_col = prev_node:range()
+					prev_node = prev_node:prev_sibling()
+				else
+					break
+				end
+			end
+
+			-- Get the full text including comments/decorators
+			local _, _, end_row, end_col = node:range()
+			local lines = vim.api.nvim_buf_get_lines(0, start_row, end_row + 1, false)
+
+			if start_row == end_row then
+				return string.sub(lines[1], start_col + 1, end_col)
+			else
+				lines[1] = string.sub(lines[1], start_col + 1)
+				lines[#lines] = string.sub(lines[#lines], 1, end_col)
+				return table.concat(lines, "\n")
+			end
+		end
+		node = node:parent()
+	end
 end
 
 local function get_prompt(opts)
@@ -127,14 +190,29 @@ local function get_prompt(opts)
 		prompt = M.get_lines_until_cursor()
 	end
 
-	local _, _, path = string.find(prompt, "{@dingllmIncludeFile (.-)}")
+	local _, _, path = string.find(prompt, "{@dingllmIncludeSymbol (.-)}")
+	while path ~= nil do
+		local location_parts = split(path, ":")
+		vim.print("lacation_parts" .. vim.inspect(location_parts))
+		vim.print("file_name" .. string.sub(location_parts[3], 3))
+		local contents = get_definition(string.sub(location_parts[3], 3), location_parts[4], location_parts[5])
+
+		if contents == nil then
+			vim.print("Failed to find definition")
+			prompt = string.gsub(prompt, "{@dingllmIncludeSymbol .-}", path)
+		else
+			prompt = string.gsub(prompt, "{@dingllmIncludeSymbol .-}", contents)
+		end
+		_, _, path = string.find(prompt, "{@dingllmIncludeSymbol (.-)}")
+	end
+
+	_, _, path = string.find(prompt, "{@dingllmIncludeFile (.-)}")
 	while path ~= nil do
 		local file_contents = vim.fn.readfile(path)
 
 		if file_contents then
 			-- file_contents is a table where each line is an element
 			local contents = table.concat(file_contents, "\n")
-			print(contents)
 			prompt = string.gsub(prompt, "{@dingllmIncludeFile .-}", contents)
 		else
 			print("Failed to read file")
@@ -144,26 +222,25 @@ local function get_prompt(opts)
 	end
 	return prompt
 end
-
 function M.handle_anthropic_spec_data(data_stream, event_state)
-  if event_state == 'content_block_delta' then
-    local json = vim.json.decode(data_stream)
-    if json.delta and json.delta.text then
-      M.write_string_at_cursor(json.delta.text)
-    end
-  end
+	if event_state == "content_block_delta" then
+		local json = vim.json.decode(data_stream)
+		if json.delta and json.delta.text then
+			M.write_string_at_cursor(json.delta.text)
+		end
+	end
 end
 
 function M.handle_openai_spec_data(data_stream)
-  if data_stream:match '"delta":' then
-    local json = vim.json.decode(data_stream)
-    if json.choices and json.choices[1] and json.choices[1].delta then
-      local content = json.choices[1].delta.content
-      if content then
-        M.write_string_at_cursor(content)
-      end
-    end
-  end
+	if data_stream:match('"delta":') then
+		local json = vim.json.decode(data_stream)
+		if json.choices and json.choices[1] and json.choices[1].delta then
+			local content = json.choices[1].delta.content
+			if content then
+				M.write_string_at_cursor(content)
+			end
+		end
+	end
 end
 
 local group = vim.api.nvim_create_augroup("DING_LLM_AutoGroup", { clear = true })
